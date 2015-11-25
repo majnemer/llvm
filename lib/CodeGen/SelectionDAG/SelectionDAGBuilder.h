@@ -736,8 +736,9 @@ private:
   void visitSwitch(const SwitchInst &I);
   void visitIndirectBr(const IndirectBrInst &I);
   void visitUnreachable(const UnreachableInst &I);
+  void visitCleanupEndPad(const CleanupEndPadInst &I);
   void visitCleanupRet(const CleanupReturnInst &I);
-  void visitCatchSwitch(const CatchSwitchInst &I);
+  void visitCatchEndPad(const CatchEndPadInst &I);
   void visitCatchRet(const CatchReturnInst &I);
   void visitCatchPad(const CatchPadInst &I);
   void visitTerminatePad(const TerminatePadInst &TPI);

@@ -22,17 +22,19 @@ body:
   invoke void @f()
           to label %exit unwind label %catch.pad
 catch.pad:
-  %cs1 = catchswitch none, unwind to caller [label %catch.body]
+  %catch = catchpad [i32 33554467]
+          to label %catch.body unwind label %catch.end
 catch.body:
-  %catch = catchpad %cs1 [i32 33554467]
   catchret %catch to label %exit
+catch.end:
+  catchendpad unwind to caller
 exit:
   ret void
 }
 ; CHECK-LABEL: catchret:  # @catchret
 ; CHECK: [[Exit:^[^ :]+]]: # Block address taken
 ; CHECK-NEXT:              # %exit
-; CHECK: # %catch.body
+; CHECK: # %catch.pad
 ; CHECK: .seh_endprolog
 ; CHECK: leaq [[Exit]](%rip), %rax
 ; CHECK: retq # CATCHRET

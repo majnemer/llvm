@@ -480,10 +480,8 @@ private:
   void visitExtractValueInst(ExtractValueInst &EVI);
   void visitInsertValueInst(InsertValueInst &IVI);
   void visitLandingPadInst(LandingPadInst &I) { markAnythingOverdefined(&I); }
-  void visitFuncletPadInst(FuncletPadInst &FPI) {
-    markAnythingOverdefined(&FPI);
-  }
-  void visitCatchSwitchInst(CatchSwitchInst &CPI) {
+  void visitCleanupPadInst(CleanupPadInst &CPI) { markAnythingOverdefined(&CPI); }
+  void visitCatchPadInst(CatchPadInst &CPI) {
     markAnythingOverdefined(&CPI);
     visitTerminatorInst(CPI);
   }

@@ -2684,18 +2684,28 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     setOrigin(&I, getCleanOrigin());
   }
 
-  void visitCatchSwitchInst(CatchSwitchInst &I) {
+  void visitCleanupPadInst(CleanupPadInst &I) {
     setShadow(&I, getCleanShadow(&I));
     setOrigin(&I, getCleanOrigin());
   }
 
-  void visitFuncletPadInst(FuncletPadInst &I) {
+  void visitCatchPad(CatchPadInst &I) {
     setShadow(&I, getCleanShadow(&I));
     setOrigin(&I, getCleanOrigin());
   }
 
   void visitTerminatePad(TerminatePadInst &I) {
     DEBUG(dbgs() << "TerminatePad: " << I << "\n");
+    // Nothing to do here.
+  }
+
+  void visitCatchEndPadInst(CatchEndPadInst &I) {
+    DEBUG(dbgs() << "CatchEndPad: " << I << "\n");
+    // Nothing to do here.
+  }
+
+  void visitCleanupEndPadInst(CleanupEndPadInst &I) {
+    DEBUG(dbgs() << "CleanupEndPad: " << I << "\n");
     // Nothing to do here.
   }
 

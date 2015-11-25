@@ -210,7 +210,11 @@ HandleCallsInBlockInlinedThroughInvoke(BasicBlock *BB, BasicBlock *UnwindEdge) {
     SmallVector<Value*, 8> InvokeArgs(CS.arg_begin(), CS.arg_end());
     SmallVector<OperandBundleDef, 1> OpBundles;
 
-    CS.getOperandBundlesAsDefs(OpBundles);
+    // Copy the OperandBundeUse instances to OperandBundleDefs.  These two are
+    // *different* representations of operand bundles: see the documentation in
+    // InstrTypes.h for more details.
+    for (unsigned i = 0, e = CS.getNumOperandBundles(); i != e; ++i)
+      OpBundles.emplace_back(CS.getOperandBundleAt(i));
 
     // Note: we're round tripping operand bundles through memory here, and that
     // can potentially be avoided with a cleverer API design that we do not have
@@ -335,29 +339,30 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
        BB != E; ++BB) {
     Instruction *I = BB->getFirstNonPHI();
     if (I->isEHPad()) {
-      if (auto *TPI = dyn_cast<TerminatePadInst>(I)) {
+      if (auto *CEPI = dyn_cast<CatchEndPadInst>(I)) {
+        if (CEPI->unwindsToCaller()) {
+          CatchEndPadInst::Create(CEPI->getContext(), UnwindDest, CEPI);
+          CEPI->eraseFromParent();
+          UpdatePHINodes(&*BB);
+        }
+      } else if (auto *CEPI = dyn_cast<CleanupEndPadInst>(I)) {
+        if (CEPI->unwindsToCaller()) {
+          CleanupEndPadInst::Create(CEPI->getCleanupPad(), UnwindDest, CEPI);
+          CEPI->eraseFromParent();
+          UpdatePHINodes(&*BB);
+        }
+      } else if (auto *TPI = dyn_cast<TerminatePadInst>(I)) {
         if (TPI->unwindsToCaller()) {
           SmallVector<Value *, 3> TerminatePadArgs;
           for (Value *ArgOperand : TPI->arg_operands())
             TerminatePadArgs.push_back(ArgOperand);
-          TerminatePadInst::Create(TPI->getParent(), UnwindDest,
-                                   TerminatePadArgs, TPI->getName(), TPI);
+          TerminatePadInst::Create(TPI->getContext(), UnwindDest,
+                                   TerminatePadArgs, TPI);
           TPI->eraseFromParent();
           UpdatePHINodes(&*BB);
         }
-      } else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(I)) {
-        if (CatchSwitch->unwindsToCaller()) {
-          auto *NewCatchSwitch =
-              CatchSwitchInst::Create(CatchSwitch->getOuterScope(), UnwindDest,
-                                      CatchSwitch->getNumHandlers(),
-                                      CatchSwitch->getName(), CatchSwitch);
-          for (const llvm::Use &U : CatchSwitch->handlers())
-            NewCatchSwitch->addHandler(cast<BasicBlock>(U));
-          CatchSwitch->eraseFromParent();
-          UpdatePHINodes(&*BB);
-        }
       } else {
-        assert(isa<FuncletPadInst>(I));
+        assert(isa<CatchPadInst>(I) || isa<CleanupPadInst>(I));
       }
     }
 

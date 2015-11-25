@@ -2887,37 +2887,19 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 
       writeOperand(LPI->getClause(i), true);
     }
-  } else if (const auto *CatchSwitch = dyn_cast<CatchSwitchInst>(&I)) {
-    Out << ' ';
-    writeOperand(CatchSwitch->getOuterScope(), /*PrintType=*/false);
-    Out << ", unwind ";
-    if (const BasicBlock *UnwindDest = CatchSwitch->getUnwindDest())
-      writeOperand(UnwindDest, /*PrintType=*/true);
-    else
-      Out << "to caller";
+  } else if (const auto *CPI = dyn_cast<CatchPadInst>(&I)) {
     Out << " [";
-    unsigned Op = 0;
-    for (const Use &U : CatchSwitch->handlers()) {
-      if (Op > 0)
-        Out << ", ";
-      writeOperand(U, /*PrintType=*/true);
-      ++Op;
-    }
-    Out << ']';
-  } else if (const auto *FPI = dyn_cast<FuncletPadInst>(&I)) {
-    Out << ' ';
-    writeOperand(FPI->getOuterScope(), /*PrintType=*/false);
-    Out << " [";
-    for (unsigned Op = 0, NumOps = FPI->getNumArgOperands(); Op < NumOps;
+    for (unsigned Op = 0, NumOps = CPI->getNumArgOperands(); Op < NumOps;
          ++Op) {
       if (Op > 0)
         Out << ", ";
-      writeOperand(FPI->getArgOperand(Op), /*PrintType=*/true);
+      writeOperand(CPI->getArgOperand(Op), /*PrintType=*/true);
     }
-    Out << ']';
+    Out << "]\n          to ";
+    writeOperand(CPI->getNormalDest(), /*PrintType=*/true);
+    Out << " unwind ";
+    writeOperand(CPI->getUnwindDest(), /*PrintType=*/true);
   } else if (const auto *TPI = dyn_cast<TerminatePadInst>(&I)) {
-    Out << ' ';
-    writeOperand(TPI->getOuterScope(), /*PrintType=*/false);
     Out << " [";
     for (unsigned Op = 0, NumOps = TPI->getNumArgOperands(); Op < NumOps;
          ++Op) {
@@ -2930,6 +2912,14 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
       writeOperand(TPI->getUnwindDest(), /*PrintType=*/true);
     else
       Out << "to caller";
+  } else if (const auto *CPI = dyn_cast<CleanupPadInst>(&I)) {
+    Out << " [";
+    for (unsigned Op = 0, NumOps = CPI->getNumOperands(); Op < NumOps; ++Op) {
+      if (Op > 0)
+        Out << ", ";
+      writeOperand(CPI->getOperand(Op), /*PrintType=*/true);
+    }
+    Out << "]";
   } else if (isa<ReturnInst>(I) && !Operand) {
     Out << " void";
   } else if (const auto *CRI = dyn_cast<CatchReturnInst>(&I)) {
@@ -2945,6 +2935,21 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     Out << " unwind ";
     if (CRI->hasUnwindDest())
       writeOperand(CRI->getUnwindDest(), /*PrintType=*/true);
+    else
+      Out << "to caller";
+  } else if (const auto *CEPI = dyn_cast<CatchEndPadInst>(&I)) {
+    Out << " unwind ";
+    if (CEPI->hasUnwindDest())
+      writeOperand(CEPI->getUnwindDest(), /*PrintType=*/true);
+    else
+      Out << "to caller";
+  } else if (const auto *CEPI = dyn_cast<CleanupEndPadInst>(&I)) {
+    Out << ' ';
+    writeOperand(CEPI->getCleanupPad(), /*PrintType=*/false);
+
+    Out << " unwind ";
+    if (CEPI->hasUnwindDest())
+      writeOperand(CEPI->getUnwindDest(), /*PrintType=*/true);
     else
       Out << "to caller";
   } else if (const CallInst *CI = dyn_cast<CallInst>(&I)) {

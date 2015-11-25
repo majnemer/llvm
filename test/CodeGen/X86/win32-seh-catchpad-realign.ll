@@ -15,14 +15,17 @@ entry:
           to label %__try.cont unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %entry
-  %cs1 = catchswitch none, unwind to caller [label %__except.ret]
+  %pad = catchpad [i8* bitcast (i32 ()* @"\01?filt$0@0@realigned_try@@" to i8*)]
+          to label %__except.ret unwind label %catchendblock
 
 __except.ret:                                     ; preds = %catch.dispatch
-  %pad = catchpad %cs1 [i8* bitcast (i32 ()* @"\01?filt$0@0@realigned_try@@" to i8*)]
   catchret %pad to label %__try.cont
 
 __try.cont:                                       ; preds = %entry, %__except.ret
   ret void
+
+catchendblock:                                    ; preds = %catch.dispatch
+  catchendpad unwind to caller
 }
 
 ; Function Attrs: nounwind argmemonly
@@ -66,7 +69,7 @@ declare i32 @_except_handler3(...)
 ; CHECK: popl    %ebp
 ; CHECK: retl
 ;
-; CHECK: LBB0_1:                                 # %__except.ret
+; CHECK: LBB0_1:                                 # %catch.dispatch
 ; Restore ESP
 ; CHECK: movl    -24(%ebp), %esp
 ; Recompute ESI by subtracting 60 from the end of the registration node.

@@ -8,16 +8,19 @@ entry:
           to label %try.cont unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %entry
-  %cs1 = catchswitch none, unwind to caller [label %catch]
+  %0 = catchpad [i8* null, i32 64, i8* null]
+          to label %catch unwind label %catchendblock
 
 catch:                                            ; preds = %catch.dispatch
-  %0 = catchpad %cs1 [i8* null, i32 64, i8* null]
   catchret %0 to label %try.cont
 
 try.cont:                                         ; preds = %entry, %catch
   %b.0 = phi i1 [ false, %catch ], [ true, %entry ]
   tail call void @h(i1 zeroext %b.0)
   ret void
+
+catchendblock:                                    ; preds = %catch.dispatch
+  catchendpad unwind to caller
 }
 
 ; CHECK-LABEL: _f:

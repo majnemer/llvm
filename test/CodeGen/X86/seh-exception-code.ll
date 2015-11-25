@@ -14,10 +14,10 @@ entry:
           to label %__try.cont unwind label %catch.dispatch
 
 catch.dispatch:                                   ; preds = %entry
-  %cs = catchswitch none, unwind to caller [label %__except]
+  %pad = catchpad [i8* null]
+          to label %__except unwind label %catchendblock
 
 __except:                                         ; preds = %catch.dispatch
-  %pad = catchpad %cs [i8* null]
   catchret %pad to label %__except.1
 
 __except.1:                                       ; preds = %__except
@@ -27,12 +27,15 @@ __except.1:                                       ; preds = %__except
 
 __try.cont:                                       ; preds = %entry, %__except.1
   ret void
+
+catchendblock:                                    ; preds = %catch.dispatch
+  catchendpad unwind to caller
 }
 
 ; CHECK-LABEL: ehcode:
 ; CHECK: xorl %ecx, %ecx
 ; CHECK: callq f
 
-; CHECK: # %__except
+; CHECK: # %catch.dispatch
 ; CHECK: movl %eax, %ecx
 ; CHECK-NEXT: callq f

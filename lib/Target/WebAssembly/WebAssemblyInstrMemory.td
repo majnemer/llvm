@@ -12,7 +12,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
-// TODO:
+// FIXME:
 //  - HasAddr64
 //  - WebAssemblyTargetLowering::isLegalAddressingMode
 //  - WebAssemblyTargetLowering having to do with atomics

@@ -131,23 +131,11 @@ GlobalVariable *createPGOFuncNameVar(Function &F, StringRef FuncName) {
   return createPGOFuncNameVar(*F.getParent(), F.getLinkage(), FuncName);
 }
 
-uint64_t stringToHash(uint32_t ValueKind, uint64_t Value) {
-  switch (ValueKind) {
-  case IPVK_IndirectCallTarget:
-    return IndexedInstrProf::ComputeHash(IndexedInstrProf::HashType,
-                                         (const char *)Value);
-    break;
-  default:
-    llvm_unreachable("value kind not handled !");
-  }
-  return Value;
-}
-
 void ValueProfRecord::deserializeTo(InstrProfRecord &Record,
                                     InstrProfRecord::ValueMapType *VMap) {
   Record.reserveSites(Kind, NumValueSites);
 
-  InstrProfValueData *ValueData = getValueProfRecordValueData(this);
+  InstrProfValueData *ValueData = this->getValueData();
   for (uint64_t VSite = 0; VSite < NumValueSites; ++VSite) {
     uint8_t ValueDataCount = this->SiteCountArray[VSite];
     Record.addValueData(Kind, VSite, ValueData, ValueDataCount, VMap);
@@ -155,21 +143,26 @@ void ValueProfRecord::deserializeTo(InstrProfRecord &Record,
   }
 }
 
-// Extract data from \c Closure and serialize into \c This instance.
-void serializeValueProfRecordFrom(ValueProfRecord *This,
-                                  ValueProfRecordClosure *Closure,
-                                  uint32_t ValueKind, uint32_t NumValueSites) {
-  uint32_t S;
-  const void *Record = Closure->Record;
-  This->Kind = ValueKind;
-  This->NumValueSites = NumValueSites;
-  InstrProfValueData *DstVD = getValueProfRecordValueData(This);
-
-  for (S = 0; S < NumValueSites; S++) {
-    uint32_t ND = Closure->GetNumValueDataForSite(Record, ValueKind, S);
-    This->SiteCountArray[S] = ND;
-    Closure->GetValueForSite(Record, DstVD, ValueKind, S,
-                             Closure->RemapValueData);
+void ValueProfRecord::serializeFrom(const InstrProfRecord &Record,
+                                    uint32_t ValueKind,
+                                    uint32_t NumValueSites) {
+  Kind = ValueKind;
+  this->NumValueSites = NumValueSites;
+  InstrProfValueData *DstVD = getValueData();
+  for (uint32_t S = 0; S < NumValueSites; S++) {
+    uint32_t ND = Record.getNumValueDataForSite(ValueKind, S);
+    SiteCountArray[S] = ND;
+    Record.getValueForSite(DstVD, ValueKind, S);
+    for (uint32_t I = 0; I < ND; I++) {
+      switch (ValueKind) {
+      case IPVK_IndirectCallTarget:
+        DstVD[I].Value = IndexedInstrProf::ComputeHash(
+            IndexedInstrProf::HashType, (const char *)DstVD[I].Value);
+        break;
+      default:
+        llvm_unreachable("value kind not handled !");
+      }
+    }
     DstVD += ND;
   }
 }
@@ -196,8 +189,8 @@ void ValueProfRecord::swapBytes(support::endianness Old,
     sys::swapByteOrder<uint32_t>(NumValueSites);
     sys::swapByteOrder<uint32_t>(Kind);
   }
-  uint32_t ND = getValueProfRecordNumValueData(this);
-  InstrProfValueData *VD = getValueProfRecordValueData(this);
+  uint32_t ND = getNumValueData();
+  InstrProfValueData *VD = getValueData();
 
   // No need to swap byte array: SiteCountArrray.
   for (uint32_t I = 0; I < ND; I++) {
@@ -210,22 +203,18 @@ void ValueProfRecord::swapBytes(support::endianness Old,
   }
 }
 
-/// Return the total size in bytes of the on-disk value profile data
-/// given the data stored in Record.
-uint32_t getValueProfDataSize(ValueProfRecordClosure *Closure) {
-  uint32_t Kind;
+uint32_t ValueProfData::getSize(const InstrProfRecord &Record) {
   uint32_t TotalSize = sizeof(ValueProfData);
-  const void *Record = Closure->Record;
-  uint32_t NumValueKinds = Closure->GetNumValueKinds(Record);
+  uint32_t NumValueKinds = Record.getNumValueKinds();
   if (NumValueKinds == 0)
     return TotalSize;
 
-  for (Kind = IPVK_First; Kind <= IPVK_Last; Kind++) {
-    uint32_t NumValueSites = Closure->GetNumValueSites(Record, Kind);
+  for (uint32_t Kind = IPVK_First; Kind <= IPVK_Last; Kind++) {
+    uint32_t NumValueSites = Record.getNumValueSites(Kind);
     if (!NumValueSites)
       continue;
-    TotalSize += getValueProfRecordSize(NumValueSites,
-                                        Closure->GetNumValueData(Record, Kind));
+    TotalSize +=
+        getValueProfRecordSize(NumValueSites, Record.getNumValueData(Kind));
   }
   return TotalSize;
 }
@@ -235,92 +224,34 @@ void ValueProfData::deserializeTo(InstrProfRecord &Record,
   if (NumValueKinds == 0)
     return;
 
-  ValueProfRecord *VR = getFirstValueProfRecord(this);
+  ValueProfRecord *VR = getFirstValueProfRecord();
   for (uint32_t K = 0; K < NumValueKinds; K++) {
     VR->deserializeTo(Record, VMap);
-    VR = getValueProfRecordNext(VR);
+    VR = VR->getNext();
   }
 }
 
-static std::unique_ptr<ValueProfData> allocValueProfData(uint32_t TotalSize) {
+static std::unique_ptr<ValueProfData> AllocValueProfData(uint32_t TotalSize) {
   return std::unique_ptr<ValueProfData>(new (::operator new(TotalSize))
                                             ValueProfData());
 }
 
-ValueProfData *serializeValueProfDataFrom(ValueProfRecordClosure *Closure) {
-  uint32_t TotalSize = getValueProfDataSize(Closure);
-
-  ValueProfData *VPD = Closure->AllocValueProfData(TotalSize);
-
-  VPD->TotalSize = TotalSize;
-  VPD->NumValueKinds = Closure->GetNumValueKinds(Closure->Record);
-  ValueProfRecord *VR = getFirstValueProfRecord(VPD);
-  for (uint32_t Kind = IPVK_First; Kind <= IPVK_Last; Kind++) {
-    uint32_t NumValueSites = Closure->GetNumValueSites(Closure->Record, Kind);
-    if (!NumValueSites)
-      continue;
-    serializeValueProfRecordFrom(VR, Closure, Kind, NumValueSites);
-    VR = getValueProfRecordNext(VR);
-  }
-  return VPD;
-}
-
-// C wrappers of InstrProfRecord member functions used in Closure.
-// These C wrappers are used as adaptors so that C++ code can be
-// invoked as callbacks.
-uint32_t getNumValueKindsInstrProf(const void *Record) {
-  return reinterpret_cast<const InstrProfRecord *>(Record)->getNumValueKinds();
-}
-
-uint32_t getNumValueSitesInstrProf(const void *Record, uint32_t VKind) {
-  return reinterpret_cast<const InstrProfRecord *>(Record)
-      ->getNumValueSites(VKind);
-}
-
-uint32_t getNumValueDataInstrProf(const void *Record, uint32_t VKind) {
-  return reinterpret_cast<const InstrProfRecord *>(Record)
-      ->getNumValueData(VKind);
-}
-
-uint32_t getNumValueDataForSiteInstrProf(const void *R, uint32_t VK,
-                                         uint32_t S) {
-  return reinterpret_cast<const InstrProfRecord *>(R)
-      ->getNumValueDataForSite(VK, S);
-}
-
-void getValueForSiteInstrProf(const void *R, InstrProfValueData *Dst,
-                              uint32_t K, uint32_t S,
-                              uint64_t (*Mapper)(uint32_t, uint64_t)) {
-  return reinterpret_cast<const InstrProfRecord *>(R)
-      ->getValueForSite(Dst, K, S, Mapper);
-}
-
-ValueProfData *allocValueProfDataInstrProf(size_t TotalSizeInBytes) {
-  return (ValueProfData *)(new (::operator new(TotalSizeInBytes))
-                               ValueProfData());
-}
-
-static ValueProfRecordClosure InstrProfRecordClosure = {
-    0,
-    getNumValueKindsInstrProf,
-    getNumValueSitesInstrProf,
-    getNumValueDataInstrProf,
-    getNumValueDataForSiteInstrProf,
-    stringToHash,
-    getValueForSiteInstrProf,
-    allocValueProfDataInstrProf};
-
-uint32_t ValueProfData::getSize(const InstrProfRecord &Record) {
-  InstrProfRecordClosure.Record = &Record;
-  return getValueProfDataSize(&InstrProfRecordClosure);
-}
-
 std::unique_ptr<ValueProfData>
 ValueProfData::serializeFrom(const InstrProfRecord &Record) {
-  InstrProfRecordClosure.Record = &Record;
+  uint32_t TotalSize = getSize(Record);
 
-  std::unique_ptr<ValueProfData> VPD(
-      serializeValueProfDataFrom(&InstrProfRecordClosure));
+  std::unique_ptr<ValueProfData> VPD = AllocValueProfData(TotalSize);
+
+  VPD->TotalSize = TotalSize;
+  VPD->NumValueKinds = Record.getNumValueKinds();
+  ValueProfRecord *VR = VPD->getFirstValueProfRecord();
+  for (uint32_t Kind = IPVK_First; Kind <= IPVK_Last; Kind++) {
+    uint32_t NumValueSites = Record.getNumValueSites(Kind);
+    if (!NumValueSites)
+      continue;
+    VR->serializeFrom(Record, Kind, NumValueSites);
+    VR = VR->getNext();
+  }
   return VPD;
 }
 
@@ -344,18 +275,18 @@ ValueProfData::getValueProfData(const unsigned char *D,
   if (TotalSize % sizeof(uint64_t))
     return instrprof_error::malformed;
 
-  std::unique_ptr<ValueProfData> VPD = allocValueProfData(TotalSize);
+  std::unique_ptr<ValueProfData> VPD = AllocValueProfData(TotalSize);
 
   memcpy(VPD.get(), D, TotalSize);
   // Byte swap.
   VPD->swapBytesToHost(Endianness);
 
-  // Data integrity check:
-  ValueProfRecord *VR = getFirstValueProfRecord(VPD.get());
+  // Data integrety check:
+  ValueProfRecord *VR = VPD->getFirstValueProfRecord();
   for (uint32_t K = 0; K < VPD->NumValueKinds; K++) {
     if (VR->Kind > IPVK_Last)
       return instrprof_error::malformed;
-    VR = getValueProfRecordNext(VR);
+    VR = VR->getNext();
     if ((char *)VR - (char *)VPD.get() > (ptrdiff_t)TotalSize)
       return instrprof_error::malformed;
   }
@@ -371,10 +302,10 @@ void ValueProfData::swapBytesToHost(support::endianness Endianness) {
   sys::swapByteOrder<uint32_t>(TotalSize);
   sys::swapByteOrder<uint32_t>(NumValueKinds);
 
-  ValueProfRecord *VR = getFirstValueProfRecord(this);
+  ValueProfRecord *VR = getFirstValueProfRecord();
   for (uint32_t K = 0; K < NumValueKinds; K++) {
     VR->swapBytes(Endianness, getHostEndianness());
-    VR = getValueProfRecordNext(VR);
+    VR = VR->getNext();
   }
 }
 
@@ -383,13 +314,34 @@ void ValueProfData::swapBytesFromHost(support::endianness Endianness) {
   if (Endianness == getHostEndianness())
     return;
 
-  ValueProfRecord *VR = getFirstValueProfRecord(this);
+  ValueProfRecord *VR = getFirstValueProfRecord();
   for (uint32_t K = 0; K < NumValueKinds; K++) {
-    ValueProfRecord *NVR = getValueProfRecordNext(VR);
+    ValueProfRecord *NVR = VR->getNext();
     VR->swapBytes(getHostEndianness(), Endianness);
     VR = NVR;
   }
   sys::swapByteOrder<uint32_t>(TotalSize);
   sys::swapByteOrder<uint32_t>(NumValueKinds);
+}
+
+ValueProfRecord *ValueProfData::getFirstValueProfRecord() {
+  return reinterpret_cast<ValueProfRecord *>((char *)this +
+                                             sizeof(ValueProfData));
+}
+
+uint32_t ValueProfRecord::getNumValueData() const {
+  uint32_t NumValueData = 0;
+  for (uint32_t I = 0; I < NumValueSites; I++)
+    NumValueData += SiteCountArray[I];
+  return NumValueData;
+}
+
+ValueProfRecord *ValueProfRecord::getNext() {
+  return reinterpret_cast<ValueProfRecord *>((char *)this + getSize());
+}
+
+InstrProfValueData *ValueProfRecord::getValueData() {
+  return reinterpret_cast<InstrProfValueData *>(
+      (char *)this + getValueProfRecordHeaderSize(NumValueSites));
 }
 }
