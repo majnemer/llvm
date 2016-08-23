@@ -1459,8 +1459,9 @@ void APIntImpl::udiv(APIntRef RHS) {
     return;
   } else if (lhsWords == 1 && rhsWords == 1) {
     // All high words are zero, just use native divide
+    uint64_t Divide = words()[0] / RHS.words()[0];
     clearAllBits();
-    words()[0] /= RHS.words()[0];
+    words()[0] = Divide;
     return;
   }
 
@@ -1500,8 +1501,9 @@ void APIntImpl::urem(APIntRef RHS) {
     return;
   } else if (lhsWords == 1) {
     // All high words are zero, just use native remainder
+    uint64_t Remainder = words()[0] % RHS.words()[0];
     clearAllBits();
-    words()[0] %= RHS.words()[0];
+    words()[0] = Remainder;
     return;
   }
 
