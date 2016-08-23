@@ -1035,10 +1035,12 @@ void APIntImpl::lshr(unsigned shiftAmt) {
 void APIntImpl::shl(unsigned shiftAmt) {
   assert(shiftAmt <= BitWidth && "Invalid shift amount");
   if (isSingleWord()) {
-    if (shiftAmt >= BitWidth)
+    if (shiftAmt >= BitWidth) {
       clearAllBits();
-    else
+    } else {
       InlineStorage[0] <<= shiftAmt;
+      clearUnusedBits();
+    }
     return;
   }
 
