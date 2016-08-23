@@ -884,8 +884,8 @@ void APIntImpl::zext(unsigned width) {
   }
 
   // Zero remaining words.
-  unsigned i = getNumWords() + 1;
-  memset(&Dest[i], 0, (NewNumWords - i) * APINT_WORD_SIZE);
+  for (unsigned i = getNumWords(); i < NewNumWords; ++i)
+    Dest[i] = 0;
 
   if (needsCleanup())
     delete[] OutOfLineStorage;
