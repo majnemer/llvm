@@ -360,7 +360,7 @@ class APIntImpl {
 
   MutableArrayRef<uint64_t> words() const {
     if (!needsCleanup())
-      return {InlineStorage, getNumWords()};
+      return {InlineStorage, std::max(getNumWords(), 1U)};
     return {OutOfLineStorage, getNumWords()};
   }
 
@@ -639,7 +639,7 @@ class GenericAPInt {
 
   MutableArrayRef<uint64_t> words() const {
     if (!needsCleanup())
-      return {&VAL[0], &VAL[getNumWords()]};
+      return {&VAL[0], &VAL[std::max(getNumWords(), 1U)]};
     return MutableArrayRef<uint64_t>(pVal, getNumWords());
   }
 
