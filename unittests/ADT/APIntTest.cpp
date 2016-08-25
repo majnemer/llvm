@@ -1238,6 +1238,14 @@ TEST(APIntTest, SelfMoveAssignment) {
 #endif
 }
 
+TEST(APIntTest, clearBitsAfterAshr) {
+  auto C1V = APInt(16, 32768u);
+  auto C2V = APInt(16, 3u);
+  auto x = C1V.ashr(C2V); // produces -4096
+  auto y = APInt(16, -4096ll, true);
+  EXPECT_EQ(x, y);
+}
+
 TEST(APIntTest, reverseBits) {
   EXPECT_EQ(1, APInt(1, 1).reverseBits());
   EXPECT_EQ(0, APInt(1, 0).reverseBits());
