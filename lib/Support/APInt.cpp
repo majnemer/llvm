@@ -998,7 +998,7 @@ void APIntImpl::lshr(unsigned shiftAmt) {
 
   // If we are shifting less than a word, compute the shift with a simple carry
   if (shiftAmt < APINT_BITS_PER_WORD) {
-    lshrNear(words().begin(), words().end(), getNumWords(), shiftAmt);
+    lshrNear(words().begin(), words().begin(), getNumWords(), shiftAmt);
     clearUnusedBits();
     return;
   }

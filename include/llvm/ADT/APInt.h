@@ -638,9 +638,18 @@ class GenericAPInt {
   bool isSingleWord() const { return BitWidth <= APINT_BITS_PER_WORD; }
 
   MutableArrayRef<uint64_t> words() const {
-    if (!needsCleanup())
-      return {&VAL[0], &VAL[std::max(getNumWords(), 1U)]};
-    return MutableArrayRef<uint64_t>(pVal, getNumWords());
+    size_t Length;
+    uint64_t *Ptr;
+
+    if (!needsCleanup()) {
+      Ptr = const_cast<uint64_t*>(&VAL[0]);
+      Length = std::max(getNumWords(), 1U);
+    }
+    else {
+      Ptr = pVal;
+      Length = getNumWords();
+    }
+    return {Ptr, Length};
   }
 
   /// \brief Clear unused high order bits
@@ -1049,9 +1058,12 @@ public:
     return I1.zext(I2.getBitWidth()) == I2;
   }
 
+  // Friendship is not transitive.
+  hash_code hash_value_impl() const { return hash_value(APIntRef(*this)); }
+
   /// \brief Overload to compute a hash_code for an GenericAPInt value.
   friend hash_code hash_value(const GenericAPInt &Arg) {
-    return hash_value(APIntRef(Arg));
+    return Arg.hash_value_impl();
   }
 
   friend class APIntImpl;
