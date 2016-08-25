@@ -1246,6 +1246,12 @@ TEST(APIntTest, clearBitsAfterAshr) {
   EXPECT_EQ(x, y);
 }
 
+TEST(APIntTest, wordSizeShift) {
+  APInt Val(117, 1);
+  Val <<= 64;
+  EXPECT_NE(APInt(117, 0), Val);
+}
+
 TEST(APIntTest, reverseBits) {
   EXPECT_EQ(1, APInt(1, 1).reverseBits());
   EXPECT_EQ(0, APInt(1, 0).reverseBits());

@@ -1076,7 +1076,7 @@ void APIntImpl::shl(unsigned shiftAmt) {
 
   // If we are shifting whole words, just move whole words
   if (wordShift == 0) {
-    for (unsigned i = getNumWords() - 1; i > offset; --i)
+    for (unsigned i = getNumWords() - 1; i >= offset; --i)
       words()[i] = words()[i - offset];
     for (unsigned i = 0; i < offset; i++)
       words()[i] = 0;
