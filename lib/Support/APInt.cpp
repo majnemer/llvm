@@ -903,11 +903,12 @@ void APIntImpl::ashr(unsigned shiftAmt) {
 
   // Handle single word shifts with built-in ashr
   if (isSingleWord()) {
-    if (shiftAmt == BitWidth)
+    if (shiftAmt == BitWidth) {
       InlineStorage[0] = 0; // undefined
-    else
+    } else {
       InlineStorage[0] = SignExtend64(InlineStorage[0], BitWidth) >> shiftAmt;
-    clearUnusedBits();
+      clearUnusedBits();
+    }
     return;
   }
 
@@ -915,10 +916,12 @@ void APIntImpl::ashr(unsigned shiftAmt) {
   // We return -1 if it was negative, 0 otherwise. We check this early to avoid
   // issues in the algorithm below.
   if (shiftAmt == BitWidth) {
-    if (isNegative())
+    if (isNegative()) {
       initSlowCase(-1ULL, /*IsSigned=*/true);
-    else
+      clearUnusedBits();
+    } else {
       initSlowCase(0, /*IsSigned=*/false);
+    }
     return;
   }
 
