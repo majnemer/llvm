@@ -1524,6 +1524,7 @@ void APIntImpl::udivrem(APIntRef LHS, APIntRef RHS,
     uint64_t RemVal = LHS.words()[0] % RHS.words()[0];
     Quotient.InlineStorage[0] = QuotVal;
     Remainder.InlineStorage[0] = RemVal;
+    Remainder.BitWidth = Quotient.BitWidth = LHS.BitWidth;
     return;
   }
 
@@ -1562,6 +1563,7 @@ void APIntImpl::udivrem(APIntRef LHS, APIntRef RHS,
     // There is only one word to consider so use the native versions.
     uint64_t lhsValue = LHS.words()[0];
     uint64_t rhsValue = RHS.words()[0];
+    // FIXME: Should we adjust BitWidth here as well?
     Quotient.clearAllBits();
     Quotient.words()[0] = lhsValue / rhsValue;
     Remainder.clearAllBits();

@@ -1246,6 +1246,17 @@ TEST(APIntTest, clearBitsAfterAshr) {
   EXPECT_EQ(x, y);
 }
 
+TEST(APIntTest, sdivremWidthAdjust) {
+  APInt IndexOffset(64, 20);
+  APInt ElementSize(64, 4);
+  APInt Q, R;
+  APInt::sdivrem(IndexOffset, ElementSize, Q, R);
+  IndexOffset = Q;
+  EXPECT_EQ(APInt(64, 5), Q);
+  EXPECT_EQ(APInt(64, 0), R);
+  EXPECT_EQ(APInt(64, 5), IndexOffset);
+}
+
 TEST(APIntTest, wordSizeShift) {
   APInt Val(117, 1);
   Val <<= 64;
