@@ -907,6 +907,7 @@ void APIntImpl::ashr(unsigned shiftAmt) {
       InlineStorage[0] = 0; // undefined
     else
       InlineStorage[0] = SignExtend64(InlineStorage[0], BitWidth) >> shiftAmt;
+    clearUnusedBits();
     return;
   }
 
