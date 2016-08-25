@@ -644,8 +644,7 @@ class GenericAPInt {
     if (!needsCleanup()) {
       Ptr = const_cast<uint64_t*>(&VAL[0]);
       Length = std::max(getNumWords(), 1U);
-    }
-    else {
+    } else {
       Ptr = pVal;
       Length = getNumWords();
     }
@@ -1058,7 +1057,6 @@ public:
     return I1.zext(I2.getBitWidth()) == I2;
   }
 
-  // Friendship is not transitive.
   hash_code hash_value_impl() const { return hash_value(APIntRef(*this)); }
 
   /// \brief Overload to compute a hash_code for an GenericAPInt value.
